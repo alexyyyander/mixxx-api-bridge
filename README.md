@@ -1,5 +1,7 @@
 # Mixxx API Bridge
 
+[![CI](https://github.com/alexyyyander/mixxx-api-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/alexyyyander/mixxx-api-bridge/actions/workflows/ci.yml)
+
 `mixxx-api-bridge` is a source-compatible sidecar for Mixxx. It does not
 modify the Mixxx binary. A small official-style MIDI controller mapping is
 installed in Mixxx's user mapping directory; the sidecar sends commands over a

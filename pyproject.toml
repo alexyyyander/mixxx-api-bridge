@@ -12,6 +12,10 @@ license = {text = "MIT"}
 authors = [{name = "Local Mixxx API Bridge"}]
 dependencies = []
 
+[project.urls]
+Repository = "https://github.com/alexyyyander/mixxx-api-bridge"
+Issues = "https://github.com/alexyyyander/mixxx-api-bridge/issues"
+
 [project.optional-dependencies]
 midi = [
   "mido>=1.3.0",
