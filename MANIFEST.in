@@ -1,0 +1,7 @@
+include README.md
+include pyproject.toml
+include setup.py
+include LICENSE
+recursive-include src/mixxx_api_bridge/mapping *.xml *.js
+recursive-include scripts *.py
+recursive-include docs *.md

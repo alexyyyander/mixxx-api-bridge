@@ -1,0 +1,19 @@
+name: Feature request
+description: Propose an improvement to the sidecar API or mapping.
+title: "feature: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What workflow or control is currently missing?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the API, protocol, or mapping change you suggest.
+    validations:
+      required: true

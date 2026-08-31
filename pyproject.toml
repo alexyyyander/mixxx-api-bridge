@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=58"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mixxx-api-bridge"
+version = "0.1.0"
+description = "HTTP-to-MIDI sidecar bridge for controlling Mixxx without changing its source"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [{name = "Local Mixxx API Bridge"}]
+dependencies = []
+
+[project.optional-dependencies]
+midi = [
+  "mido>=1.3.0",
+  "python-rtmidi>=1.5.8",
+]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+mixxx-api-bridge = "mixxx_api_bridge.cli:main"
+mixxx-api-bridge-install-mapping = "mixxx_api_bridge.mapping_installer:main"
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+mixxx_api_bridge = ["mapping/*.xml", "mapping/*.js"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

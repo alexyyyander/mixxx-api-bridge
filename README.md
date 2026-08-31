@@ -1,0 +1,117 @@
+# Mixxx API Bridge
+
+`mixxx-api-bridge` is a source-compatible sidecar for Mixxx. It does not
+modify the Mixxx binary. A small official-style MIDI controller mapping is
+installed in Mixxx's user mapping directory; the sidecar sends commands over a
+virtual MIDI port using SysEx and receives acknowledgements/state feedback.
+
+## Current scope
+
+- Local HTTP API on `127.0.0.1:11120`.
+- Read-only Mixxx process discovery (`ps` + macOS `Info.plist`).
+- Generic raw `group` + `key` controls and common deck/FX aliases.
+- MIDI SysEx protocol with hello/ready, set, get, subscribe, ack and feedback.
+- Optional Mido/python-rtmidi backend; deterministic in-memory backend for tests.
+- No Mixxx C++/source changes and no UI automation.
+
+## Install the mapping
+
+The installer only copies the two mapping files to the user mapping directory;
+it never writes inside `Mixxx.app`:
+
+```bash
+python scripts/install_mapping.py
+# equivalent module form
+python -m mixxx_api_bridge.mapping_installer
+# or, after pip installation:
+mixxx-api-bridge-install-mapping
+```
+
+On macOS this targets `~/Library/Application Support/Mixxx/controllers/`.
+After copying, enable **Mixxx API Bridge** in Mixxx's Controllers settings.
+
+## Run the bridge
+
+Install MIDI support when a real or virtual MIDI port is available:
+
+```bash
+python -m pip install -e '.[midi]'
+mixxx-api-bridge ports
+mixxx-api-bridge check --midi-output 'IAC Driver Bus 1' \
+  --midi-input 'IAC Driver Bus 1'
+mixxx-api-bridge serve --midi-output 'IAC Driver Bus 1' \
+  --midi-input 'IAC Driver Bus 1'
+```
+
+The same values can be supplied through `MIXXX_API_HOST`, `MIXXX_API_PORT`,
+`MIXXX_MIDI_OUTPUT`, `MIXXX_MIDI_INPUT`, and `MIXXX_API_TOKEN`. If a token is
+configured, clients must send `Authorization: Bearer <token>`.
+
+For an API-only smoke test without MIDI:
+
+```bash
+mixxx-api-bridge serve --dry-run
+curl http://127.0.0.1:11120/api/health
+curl http://127.0.0.1:11120/api/capabilities
+curl -X POST http://127.0.0.1:11120/api/control \
+  -H 'Content-Type: application/json' \
+  -d '{"path":"decks/1/volume","value":0.75}'
+```
+
+The dry-run mode validates the HTTP and protocol layers but cannot change a
+Mixxx control because no MIDI port is attached.
+
+## API examples
+
+Full endpoint and protocol documentation is in [`docs/API.md`](docs/API.md) and
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Installation details are in [`docs/INSTALL.md`](docs/INSTALL.md).
+
+## Repository layout
+
+- `src/mixxx_api_bridge/`: sidecar package, protocol, transports, HTTP server,
+  discovery, and control registry.
+- `src/mixxx_api_bridge/mapping/`: the XML/JavaScript mapping installed into
+  Mixxx's user controller directory.
+- `tests/`: Python, protocol, mapping-runtime, and packaging tests.
+- `.github/workflows/ci.yml`: cross-platform tests and distribution checks.
+- `CONTRIBUTING.md`, `SECURITY.md`, and `CHANGELOG.md`: GitHub project policy.
+
+Use a semantic alias:
+
+```json
+{"path":"fx/units/1/mix","value":0.5}
+```
+
+Or address any writable Mixxx ControlObject directly:
+
+```json
+{
+  "group":"[EffectRack1_EffectUnit1_Effect1]",
+  "key":"parameter1",
+  "value":0.65,
+  "scale":"normalized"
+}
+```
+
+`normalized` values are always 0..1 and are applied by
+`engine.setParameter`. Use `raw` only when the control's native range is
+known. Effect parameter names are dynamic; use `parameterN` until a mapping
+metadata table identifies the loaded effect's labels.
+
+## Protocol handshake
+
+The bridge sends a `HELLO` SysEx frame when it starts. The mapping responds
+with `READY`. This is stronger than checking for a running process or a MIDI
+port alone. `GET /api/status` reports both process discovery and handshake
+state.
+
+The bridge also supports a capabilities frame so a client can verify that the
+loaded mapping understands `set`, `get`, `subscribe`, and feedback operations.
+
+## Development
+
+```bash
+python -m pytest -q
+python -m compileall src scripts
+```

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+  Generic SysEx mapping for mixxx-api-bridge.
+
+  The sidecar sends one protocol frame for every command. The mapping forwards
+  that frame to MixxxApiBridge.handleSysEx, so the sidecar does not need a
+  separate XML entry for every deck/effect parameter.
+-->
+<MixxxControllerPreset mixxxVersion="2.4+" schemaVersion="1">
+  <info>
+    <name>Mixxx API Bridge</name>
+    <author>Local Mixxx API Bridge</author>
+    <description>Source-compatible HTTP/MIDI sidecar mapping for Mixxx.</description>
+  </info>
+  <controller id="Mixxx API Bridge">
+    <scriptfiles>
+      <file functionprefix="MixxxApiBridge" filename="MixxxApiBridge-scripts.js"/>
+    </scriptfiles>
+    <controls>
+      <control>
+        <group>[Master]</group>
+        <key>MixxxApiBridge.handleSysEx</key>
+        <status>0xF0</status>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+    </controls>
+  </controller>
+</MixxxControllerPreset>
