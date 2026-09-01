@@ -123,7 +123,7 @@ Installation details are in [`docs/INSTALL.md`](docs/INSTALL.md).
 - `src/mixxx_api_bridge/mapping/`: the XML/JavaScript mapping installed into
   Mixxx's user controller directory.
 - `tests/`: Python, protocol, mapping-runtime, and packaging tests.
-- `.github/workflows/ci.yml`: cross-platform tests and distribution checks.
+- `.github/workflows/ci.yml`: macOS/Linux tests and distribution checks.
 - `CONTRIBUTING.md`, `SECURITY.md`, and `CHANGELOG.md`: GitHub project policy.
 
 Use a semantic alias:

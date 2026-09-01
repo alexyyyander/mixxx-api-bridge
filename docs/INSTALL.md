@@ -20,11 +20,66 @@ the mapping must use the same MIDI endpoints.
 - A MIDI connection between the bridge and Mixxx:
   - macOS: the bundled CoreMIDI helper (recommended for sandboxed hosts), an
     IAC Driver bus, or a hardware MIDI device;
-  - Linux/Windows: a hardware or platform virtual MIDI port.
+  - Ubuntu/Linux: a hardware or ALSA/PipeWire virtual MIDI port.
 
 On macOS, the CoreMIDI helper avoids loading `python-rtmidi` into the Python
 process. This is useful when the host rejects native MIDI client creation and
 would otherwise terminate Python.
+
+## Ubuntu / Linux quick path
+
+Ubuntu does not need the CoreMIDI helper. Use the ALSA MIDI backend through
+Mido/`python-rtmidi`:
+
+The normal per-user mapping directory on Ubuntu is:
+
+```text
+~/.mixxx/controllers/
+```
+
+```bash
+sudo apt update
+sudo apt install -y mixxx python3-venv python3-pip build-essential libasound2-dev alsa-utils
+
+git clone https://github.com/alexyyyander/mixxx-api-bridge.git
+cd mixxx-api-bridge
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e '.[dev,midi]'
+mixxx-api-bridge-install-mapping --force
+```
+
+If the machine has no hardware MIDI device, an ALSA sequencer dummy client can
+be used for experimentation:
+
+```bash
+sudo modprobe snd-seq-dummy ports=2
+aconnect -l
+mixxx-api-bridge ports
+```
+
+For PipeWire sessions, use the exact port names shown by
+`mixxx-api-bridge ports` and connect the bridge/Mixxx endpoints in a patchbay
+such as `qpwgraph` (or with the appropriate `pw-link` commands). The bridge
+does not create Linux virtual ports itself; it opens existing ALSA/PipeWire or
+hardware ports.
+
+Start Mixxx once, enable `Mixxx API Bridge` on the chosen MIDI input/output
+ports, then run the sidecar in another terminal:
+
+```bash
+mixxx-api-bridge check \
+  --midi-output '<port carrying commands to Mixxx>' \
+  --midi-input '<port carrying Mixxx feedback>'
+
+mixxx-api-bridge serve \
+  --midi-output '<port carrying commands to Mixxx>' \
+  --midi-input '<port carrying Mixxx feedback>'
+```
+
+On Linux, `MIXXX_API_BRIDGE_ENABLE_NATIVE_MIDI=1` is not required. That
+environment variable is only needed for the guarded macOS native MIDI path.
 
 ## 2. Install from a checkout
 
