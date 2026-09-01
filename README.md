@@ -7,6 +7,32 @@ modify the Mixxx binary. A small official-style MIDI controller mapping is
 installed in Mixxx's user mapping directory; the sidecar sends commands over a
 virtual MIDI port using SysEx and receives acknowledgements/state feedback.
 
+## Why this bridge exists
+
+An MCP server or another AI-facing client is good at interpreting intent and
+orchestrating workflows. It should not also have to own the low-level contract
+with the DJ engine. This bridge keeps those responsibilities separate:
+
+- **AI/MCP clients own intent** — natural-language commands, set planning, and
+  multi-step orchestration remain replaceable.
+- **The bridge owns execution** — stable HTTP requests are translated into
+  Mixxx controls with request IDs, a real mapping handshake, acknowledgements,
+  state feedback, and capability discovery.
+- **Mixxx owns real-time audio** — the sidecar uses the supported controller
+  mapping API and does not patch or inject code into the audio engine.
+
+This separation is the project's main value. An externally maintained MCP
+server can be the first client without becoming a dependency of the engine
+integration. A different MCP server, model, desktop UI, or automation service
+can reuse the same API. Likewise, a Mixxx-derived engine that preserves the
+controller scripting API can adopt the bridge without inheriting the AI layer.
+
+Compared with fire-and-forget control, the bridge can distinguish three
+different states: the Mixxx process is running, a MIDI transport is available,
+and the expected mapping has actually replied `READY`. Clients can then wait
+for an `ACK` and matching feedback instead of treating a sent packet as proof
+that a control changed.
+
 ## Current scope
 
 - Local HTTP API on `127.0.0.1:11120`.
@@ -109,6 +135,32 @@ curl -X POST http://127.0.0.1:11120/api/action \
 
 The dry-run mode validates the HTTP and protocol layers but cannot change a
 Mixxx control because no MIDI port is attached.
+
+## End-to-end verification
+
+The CoreMIDI C-helper path was verified locally against Mixxx 2.5.6 on
+2026-09-01. The live health response reported `transport: "coremidi-c"`,
+`bridge.connected: true`, the loaded `MixxxApiBridge` mapping, and the remote
+mapping capabilities.
+
+A non-disruptive control round trip read the centered crossfader (`0.5`) and
+wrote the same value back:
+
+```bash
+BRIDGE_URL=http://127.0.0.1:11120
+
+curl "$BRIDGE_URL/api/control?path=mixer%2Fcrossfader&wait_ms=1000"
+
+curl -X POST "$BRIDGE_URL/api/control" \
+  -H 'Content-Type: application/json' \
+  -d '{"path":"mixer/crossfader","value":0.5,"wait_ms":1000}'
+```
+
+The write returned `accepted: true`, `connected: true`, an `ACK`, and a
+feedback frame. The ACK and feedback carried the same request ID and value,
+demonstrating the complete HTTP → SysEx → Mixxx mapping → SysEx → HTTP path.
+Reading the current value first and writing that value back makes this a safe
+no-op smoke test for a live setup.
 
 ## API examples
 
