@@ -2,12 +2,19 @@
 
 from .bridge import MixxxApiBridge
 from .config import BridgeConfig
-from .midi import MemoryMidiTransport, MidiMessage, MidiTransport, MidoMidiTransport
+from .midi import (
+    CoreMidiProcessTransport,
+    MemoryMidiTransport,
+    MidiMessage,
+    MidiTransport,
+    MidoMidiTransport,
+)
 from .protocol import ControlAddress, ControlCommand
 
 __all__ = [
     "ControlAddress",
     "ControlCommand",
+    "CoreMidiProcessTransport",
     "BridgeConfig",
     "MemoryMidiTransport",
     "MidiMessage",

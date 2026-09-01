@@ -16,7 +16,9 @@ HTTP client / CLI
         |
         | MIDI SysEx frames
         v
-  virtual MIDI port (IAC Driver or hardware port)
+  MIDI transport
+  - Mido/python-rtmidi (IAC or hardware)
+  - CoreMIDI C helper process (macOS fallback)
         |
         v
   MixxxApiBridge.midi.xml + MixxxApiBridge-scripts.js
@@ -63,3 +65,12 @@ Process discovery alone is not enough. A valid connection requires:
 
 The status endpoint reports all three layers. Multiple Mixxx instances should
 use separate virtual MIDI buses and separate bridge processes.
+
+## macOS CoreMIDI helper
+
+`CoreMidiProcessTransport` starts `tools/coremidi_virtual_bridge.c` as a child
+process. The helper creates one virtual source and one virtual destination and
+uses a line protocol (`SEND <hex>`, `RECV <hex>`). This keeps CoreMIDI calls
+outside Python, which is important on macOS hosts where `python-rtmidi` can
+abort instead of raising an exception. The helper is intentionally built and
+selected explicitly with `--coremidi-helper`; it is not loaded by default.

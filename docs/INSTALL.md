@@ -19,6 +19,10 @@ replace the Mixxx application bundle.
    mixxx-api-bridge-install-mapping
    ```
 
+   For the macOS sandbox build, the installer automatically selects
+   `~/Library/Containers/org.mixxx.mixxx/Data/Library/Application Support/Mixxx/controllers/`
+   when that directory exists.
+
 4. In Mixxx, enable the `Mixxx API Bridge` mapping for the selected MIDI port.
    Mixxx officially supports custom XML/JavaScript controller mappings; the
    mapping files belong in the user mapping directory rather than inside the
@@ -34,6 +38,21 @@ replace the Mixxx application bundle.
      --midi-output 'IAC Driver Bus 1' \
      --midi-input 'IAC Driver Bus 1'
    ```
+
+   If `python-rtmidi` causes a CoreMIDI abort on this Mac, build the bundled
+   helper and use it instead. This keeps CoreMIDI in a small C process and
+   leaves the Python sidecar on the HTTP/protocol layer:
+
+   ```bash
+   clang -Wall -Wextra -Werror tools/coremidi_virtual_bridge.c \
+     -framework CoreMIDI -framework CoreFoundation \
+     -o /private/tmp/mixxx-coremidi-bridge
+   mixxx-api-bridge serve \
+     --coremidi-helper /private/tmp/mixxx-coremidi-bridge
+   ```
+
+   The helper defaults to `Mixxx API Bridge In` (the endpoint Mixxx opens for
+   input) and `Mixxx API Bridge Out` (the endpoint Mixxx opens for output).
 
 ## Source checkout
 

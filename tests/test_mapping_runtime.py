@@ -27,7 +27,7 @@ const context = {
 };
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(process.argv[1], 'utf8'), context);
-context.MixxxApiBridge.handleSysEx(incoming, incoming.length);
+context.MixxxApiBridge.incomingData(incoming, incoming.length);
 process.stdout.write(JSON.stringify({ output, values }));
 """
 

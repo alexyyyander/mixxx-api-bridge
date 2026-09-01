@@ -193,7 +193,9 @@ MixxxApiBridge._handleCapabilities = function (payload) {
     });
 };
 
-MixxxApiBridge.handleSysEx = function (data, _length) {
+// Mixxx's MIDI script binding calls the conventional incomingData method.
+// Keep handleSysEx as an alias for direct callers and older bridge tests.
+MixxxApiBridge.incomingData = function (data, _length) {
     if (!MixxxApiBridge._isFrame(data)) {
         return;
     }
@@ -217,6 +219,8 @@ MixxxApiBridge.handleSysEx = function (data, _length) {
         MixxxApiBridge._error({}, error);
     }
 };
+
+MixxxApiBridge.handleSysEx = MixxxApiBridge.incomingData;
 
 MixxxApiBridge.init = function (_id, _debugging) {
     MixxxApiBridge._send(MixxxApiBridge.OP_READY, {

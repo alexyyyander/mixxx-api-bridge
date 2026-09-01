@@ -14,6 +14,7 @@ virtual MIDI port using SysEx and receives acknowledgements/state feedback.
 - Generic raw `group` + `key` controls and common deck/FX aliases.
 - MIDI SysEx protocol with hello/ready, set, get, subscribe, ack and feedback.
 - Optional Mido/python-rtmidi backend; deterministic in-memory backend for tests.
+- A macOS CoreMIDI C-helper transport for hosts where python-rtmidi is unsafe.
 - On macOS, native CoreMIDI access is opt-in because some sandboxed hosts make
   python-rtmidi abort the interpreter; set `MIXXX_API_BRIDGE_ENABLE_NATIVE_MIDI=1`
   only after confirming the host can access MIDI.
@@ -32,7 +33,9 @@ python -m mixxx_api_bridge.mapping_installer
 mixxx-api-bridge-install-mapping
 ```
 
-On macOS this targets `~/Library/Application Support/Mixxx/controllers/`.
+On macOS this targets the sandbox Mixxx data directory when it exists
+(`~/Library/Containers/org.mixxx.mixxx/Data/Library/Application Support/Mixxx/controllers/`),
+otherwise `~/Library/Application Support/Mixxx/controllers/`.
 After copying, enable **Mixxx API Bridge** in Mixxx's Controllers settings.
 
 ## Run the bridge
@@ -56,6 +59,28 @@ MIXXX_API_BRIDGE_ENABLE_NATIVE_MIDI=1 mixxx-api-bridge ports
 
 If the host cannot create a CoreMIDI client, the default is a safe structured
 `backend: "disabled"` response rather than a native crash dialog.
+
+For the macOS sandbox case shown above, a small helper can own the CoreMIDI
+virtual endpoints without loading `python-rtmidi` into Python. Build it once
+from the repository checkout:
+
+```bash
+clang -Wall -Wextra -Werror tools/coremidi_virtual_bridge.c \
+  -framework CoreMIDI -framework CoreFoundation \
+  -o /private/tmp/mixxx-coremidi-bridge
+```
+
+Start the sidecar with the helper (the default endpoint names are chosen so
+Mixxx pairs the input and output correctly):
+
+```bash
+mixxx-api-bridge serve \
+  --coremidi-helper /private/tmp/mixxx-coremidi-bridge
+```
+
+Use `--midi-output` and `--midi-input` with this mode to override the helper's
+source and destination names. The helper is a separate process and is closed
+automatically when the sidecar exits.
 
 The same values can be supplied through `MIXXX_API_HOST`, `MIXXX_API_PORT`,
 `MIXXX_MIDI_OUTPUT`, `MIXXX_MIDI_INPUT`, and `MIXXX_API_TOKEN`. If a token is

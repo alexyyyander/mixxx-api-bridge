@@ -17,6 +17,21 @@ def user_mapping_dir() -> Path:
 
     home = Path.home()
     if sys.platform == "darwin":
+        # The macOS sandbox build stores its user data in the container rather
+        # than in the conventional unsandboxed path. Prefer it when present so
+        # Mixxx can actually discover the installed mapping.
+        sandbox_data = (
+            home
+            / "Library"
+            / "Containers"
+            / "org.mixxx.mixxx"
+            / "Data"
+            / "Library"
+            / "Application Support"
+            / "Mixxx"
+        )
+        if sandbox_data.exists():
+            return sandbox_data / "controllers"
         return home / "Library" / "Application Support" / "Mixxx" / "controllers"
     if sys.platform == "win32":
         return home / "AppData" / "Local" / "Mixxx" / "controllers"
