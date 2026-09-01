@@ -21,8 +21,11 @@ MixxxApiBridge.OP_FEEDBACK = 0x02;
 MixxxApiBridge.OP_CAPABILITIES = 0x03;
 MixxxApiBridge.OP_SUBSCRIBE = 0x04;
 MixxxApiBridge.OP_GET = 0x05;
+MixxxApiBridge.OP_ACTION = 0x06;
+MixxxApiBridge.OP_SETTING_GET = 0x07;
 MixxxApiBridge.OP_READY = 0x10;
 MixxxApiBridge.OP_ACK = 0x11;
+MixxxApiBridge.OP_SETTING_VALUE = 0x12;
 MixxxApiBridge.OP_ERROR = 0x7F;
 
 MixxxApiBridge._connections = {};
@@ -85,13 +88,17 @@ MixxxApiBridge._write = function (group, key, value, scale) {
 };
 
 MixxxApiBridge._ack = function (payload, value) {
-    MixxxApiBridge._send(MixxxApiBridge.OP_ACK, {
+    var response = {
         request_id: payload.request_id || "",
         group: payload.group || "",
         key: payload.key || "",
         value: value,
         scale: payload.scale || "normalized"
-    });
+    };
+    if (payload.action) {
+        response.action = payload.action;
+    }
+    MixxxApiBridge._send(MixxxApiBridge.OP_ACK, response);
 };
 
 MixxxApiBridge._error = function (payload, message) {
@@ -107,7 +114,7 @@ MixxxApiBridge._handleHello = function (payload) {
         mapping: "MixxxApiBridge",
         mapping_version: "0.1.0",
         protocol: MixxxApiBridge.VERSION,
-        mixxx_control_api: "engine.setParameter/engine.setValue"
+        mixxx_control_api: "engine.setParameter/engine.setValue/engine.trigger/script.toggleControl/engine.reset"
     });
 };
 
@@ -183,13 +190,85 @@ MixxxApiBridge._handleSubscribe = function (payload) {
     }
 };
 
+MixxxApiBridge._handleAction = function (payload) {
+    if (typeof payload.group !== "string" || typeof payload.key !== "string") {
+        MixxxApiBridge._error(payload, "group and key are required");
+        return;
+    }
+    if (["trigger", "toggle", "reset"].indexOf(payload.action) < 0) {
+        MixxxApiBridge._error(payload, "action must be trigger, toggle, or reset");
+        return;
+    }
+    try {
+        if (payload.action === "trigger") {
+            // triggerControl is the correct API for momentary controls such
+            // as beatjump, eject, hotcue_activate, and pitch_up_small.
+            if (typeof script !== "undefined" && script.triggerControl) {
+                script.triggerControl(payload.group, payload.key);
+            } else {
+                engine.trigger(payload.group, payload.key);
+            }
+        } else if (payload.action === "toggle") {
+            if (typeof script !== "undefined" && script.toggleControl) {
+                script.toggleControl(payload.group, payload.key);
+            } else {
+                MixxxApiBridge._write(
+                    payload.group,
+                    payload.key,
+                    MixxxApiBridge._read(payload.group, payload.key, payload.scale || "normalized") ? 0 : 1,
+                    payload.scale || "normalized"
+                );
+            }
+        } else {
+            engine.reset(payload.group, payload.key);
+        }
+        var scale = payload.scale || "normalized";
+        var value = MixxxApiBridge._read(payload.group, payload.key, scale);
+        MixxxApiBridge._ack(payload, value);
+        MixxxApiBridge._sendFeedback({
+            request_id: payload.request_id || "",
+            action: payload.action,
+            group: payload.group,
+            key: payload.key,
+            value: value,
+            scale: scale
+        });
+    } catch (error) {
+        MixxxApiBridge._error(payload, error);
+    }
+};
+
+MixxxApiBridge._handleSettingGet = function (payload) {
+    if (typeof payload.name !== "string" || !payload.name) {
+        MixxxApiBridge._error(payload, "setting name is required");
+        return;
+    }
+    try {
+        if (typeof engine.getSetting !== "function") {
+            throw new Error("engine.getSetting is unavailable");
+        }
+        var value = engine.getSetting(payload.name);
+        MixxxApiBridge._send(MixxxApiBridge.OP_SETTING_VALUE, {
+            request_id: payload.request_id || "",
+            name: payload.name,
+            value: value === undefined ? null : value,
+            found: value !== undefined
+        });
+    } catch (error) {
+        MixxxApiBridge._error(payload, error);
+    }
+};
+
 MixxxApiBridge._handleCapabilities = function (payload) {
     MixxxApiBridge._send(MixxxApiBridge.OP_CAPABILITIES, {
         request_id: payload.request_id || "",
         mapping: "MixxxApiBridge",
         mapping_version: "0.1.0",
         protocol: MixxxApiBridge.VERSION,
-        supports: ["hello", "set", "get", "subscribe", "feedback", "capabilities"]
+        supports: [
+            "hello", "set", "get", "subscribe", "feedback", "capabilities",
+            "trigger", "toggle", "reset", "setting_get"
+        ]
     });
 };
 
@@ -210,6 +289,10 @@ MixxxApiBridge.incomingData = function (data, _length) {
             MixxxApiBridge._handleGet(payload);
         } else if (operation === MixxxApiBridge.OP_SUBSCRIBE) {
             MixxxApiBridge._handleSubscribe(payload);
+        } else if (operation === MixxxApiBridge.OP_ACTION) {
+            MixxxApiBridge._handleAction(payload);
+        } else if (operation === MixxxApiBridge.OP_SETTING_GET) {
+            MixxxApiBridge._handleSettingGet(payload);
         } else if (operation === MixxxApiBridge.OP_CAPABILITIES) {
             MixxxApiBridge._handleCapabilities(payload);
         } else {
@@ -227,7 +310,7 @@ MixxxApiBridge.init = function (_id, _debugging) {
         mapping: "MixxxApiBridge",
         mapping_version: "0.1.0",
         protocol: MixxxApiBridge.VERSION,
-        mixxx_control_api: "engine.setParameter/engine.setValue"
+        mixxx_control_api: "engine.setParameter/engine.setValue/engine.trigger/script.toggleControl/engine.reset"
     });
 };
 

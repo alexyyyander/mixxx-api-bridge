@@ -50,6 +50,17 @@ def build_parser() -> argparse.ArgumentParser:
     send_parser.add_argument("--midi-output")
     send_parser.add_argument("--midi-input")
     send_parser.add_argument("--coremidi-helper", help="path to the CoreMIDI C helper")
+
+    action_parser = subparsers.add_parser("action", help="trigger, toggle, or reset one control")
+    action_parser.add_argument("--action", choices=["trigger", "toggle", "reset"], required=True)
+    action_parser.add_argument("--group")
+    action_parser.add_argument("--key")
+    action_parser.add_argument("--path")
+    action_parser.add_argument("--scale", choices=["normalized", "raw"], default="normalized")
+    action_parser.add_argument("--wait-ms", type=int, default=1000)
+    action_parser.add_argument("--midi-output")
+    action_parser.add_argument("--midi-input")
+    action_parser.add_argument("--coremidi-helper", help="path to the CoreMIDI C helper")
     return parser
 
 
@@ -139,6 +150,40 @@ def main(argv: list[str] | None = None) -> int:
             )
             bridge = MixxxApiBridge(transport)
             result = bridge.set_control(payload)
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        except (RuntimeError, ValueError) as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        finally:
+            if "bridge" in locals():
+                bridge.close()
+        return 0
+    if args.command == "action":
+        if not args.coremidi_helper and not args.midi_output:
+            print("action requires --midi-output, or use --coremidi-helper", file=sys.stderr)
+            return 2
+        payload = {"action": args.action, "scale": args.scale, "wait_ms": args.wait_ms}
+        if args.group is not None or args.key is not None:
+            payload.update({"group": args.group, "key": args.key})
+        else:
+            payload["path"] = args.path
+        try:
+            transport = (
+                CoreMidiProcessTransport(
+                    args.coremidi_helper,
+                    args.midi_output or "Mixxx API Bridge In",
+                    args.midi_input or "Mixxx API Bridge Out",
+                )
+                if args.coremidi_helper
+                else MidoMidiTransport(args.midi_output, args.midi_input)
+            )
+            bridge = MixxxApiBridge(transport)
+            # A one-shot action should still perform the protocol handshake so
+            # the result reports whether the mapping was actually reachable.
+            bridge.start()
+            if args.wait_ms:
+                bridge.wait_until_connected(min(args.wait_ms, 1000))
+            result = bridge.action_control(payload)
             print(json.dumps(result, ensure_ascii=False, indent=2))
         except (RuntimeError, ValueError) as exc:
             print(str(exc), file=sys.stderr)

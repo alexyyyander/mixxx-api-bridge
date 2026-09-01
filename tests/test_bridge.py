@@ -1,9 +1,12 @@
 from mixxx_api_bridge.bridge import MixxxApiBridge
 from mixxx_api_bridge.midi import MemoryMidiTransport, MidiMessage
 from mixxx_api_bridge.protocol import (
+    OP_ACTION,
     OP_CAPABILITIES,
     OP_FEEDBACK,
     OP_READY,
+    OP_SETTING_GET,
+    OP_SETTING_VALUE,
     ProtocolError,
     decode_frame,
     encode_frame,
@@ -44,6 +47,52 @@ def test_set_control_sends_command_frame():
     assert payload["group"] == "[Channel1]"
     assert payload["key"] == "volume"
     assert payload["value"] == 0.75
+
+
+def test_action_control_sends_action_frame():
+    transport = MemoryMidiTransport()
+    bridge = MixxxApiBridge(transport)
+    result = bridge.action_control(
+        {"action": "trigger", "path": "decks/1/play", "wait_ms": 0}
+    )
+    assert result["accepted"] is True
+    operation, payload = decode_frame(transport.sent[-1].data)
+    assert operation == OP_ACTION
+    assert payload["action"] == "trigger"
+    assert payload["group"] == "[Channel1]"
+    assert payload["key"] == "play"
+
+
+def test_get_setting_round_trip():
+    transport = MemoryMidiTransport()
+    bridge = MixxxApiBridge(transport)
+    request_id = "setting-1"
+
+    def respond() -> None:
+        transport.emit(
+            MidiMessage.sysex(
+                encode_frame(
+                    OP_SETTING_VALUE,
+                    {
+                        "request_id": request_id,
+                        "name": "soft_takeover",
+                        "value": True,
+                        "found": True,
+                    },
+                )
+            )
+        )
+
+    import threading
+
+    threading.Timer(0.01, respond).start()
+    result = bridge.get_setting(
+        {"name": "soft_takeover", "request_id": request_id, "wait_ms": 1000}
+    )
+    assert result["setting"]["value"] is True
+    operation, payload = decode_frame(transport.sent[-1].data)
+    assert operation == OP_SETTING_GET
+    assert payload["name"] == "soft_takeover"
 
 
 def test_feedback_is_cached_by_group_and_key():
@@ -91,6 +140,7 @@ def test_capabilities_exposes_remote_mapping_metadata():
         )
     )
     assert bridge.capabilities()["remote_capabilities"]["mapping"] == "MixxxApiBridge"
+    assert "action" in bridge.capabilities()["protocol"]["operations"]
 
 
 def test_get_and_subscribe_reject_unknown_scale():

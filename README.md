@@ -12,7 +12,8 @@ virtual MIDI port using SysEx and receives acknowledgements/state feedback.
 - Local HTTP API on `127.0.0.1:11120`.
 - Read-only Mixxx process discovery (`ps` + macOS `Info.plist`).
 - Generic raw `group` + `key` controls and common deck/FX aliases.
-- MIDI SysEx protocol with hello/ready, set, get, subscribe, ack and feedback.
+- MIDI SysEx protocol with hello/ready, set, get, action, subscribe, ack and feedback.
+- Generic momentary actions (`trigger`, `toggle`, `reset`) in addition to value writes.
 - Optional Mido/python-rtmidi backend; deterministic in-memory backend for tests.
 - A macOS CoreMIDI C-helper transport for hosts where python-rtmidi is unsafe.
 - On macOS, native CoreMIDI access is opt-in because some sandboxed hosts make
@@ -95,6 +96,15 @@ curl http://127.0.0.1:11120/api/capabilities
 curl -X POST http://127.0.0.1:11120/api/control \
   -H 'Content-Type: application/json' \
   -d '{"path":"decks/1/volume","value":0.75}'
+
+# Momentary and binary controls
+curl -X POST http://127.0.0.1:11120/api/action \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"toggle","path":"decks/1/play","wait_ms":500}'
+
+curl -X POST http://127.0.0.1:11120/api/action \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"trigger","group":"[Channel1]","key":"beatloop_4_activate"}'
 ```
 
 The dry-run mode validates the HTTP and protocol layers but cannot change a
@@ -137,6 +147,12 @@ Or address any writable Mixxx ControlObject directly:
 `engine.setParameter`. Use `raw` only when the control's native range is
 known. Effect parameter names are dynamic; use `parameterN` until a mapping
 metadata table identifies the loaded effect's labels.
+
+The raw form reaches any Mixxx ControlObject that the active version exposes to
+controller mappings. It does not make read-only controls writable, enumerate
+the full control index, or replace action-specific APIs. Use `/api/action` for
+momentary buttons and `/api/setting` for read-only mapping settings; global
+Mixxx preferences are not changed by this sidecar.
 
 ## Protocol handshake
 

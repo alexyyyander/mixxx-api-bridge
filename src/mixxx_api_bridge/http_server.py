@@ -40,6 +40,16 @@ class _ApiHandler(BaseHTTPRequestHandler):
                 return
             self._write_json(HTTPStatus.ACCEPTED, result)
             return
+        if parsed.path == "/api/setting":
+            query = parse_qs(parsed.query)
+            payload = {key: values[-1] for key, values in query.items() if values}
+            try:
+                result = self.bridge.get_setting(payload)
+            except ProtocolError as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                return
+            self._write_json(HTTPStatus.ACCEPTED, result)
+            return
         self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
 
     def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
@@ -52,6 +62,10 @@ class _ApiHandler(BaseHTTPRequestHandler):
         try:
             if parsed.path == "/api/control":
                 result = self.bridge.set_control(payload)
+            elif parsed.path in {"/api/action", "/api/trigger", "/api/toggle", "/api/reset"}:
+                if parsed.path != "/api/action":
+                    payload = {**payload, "action": parsed.path.rsplit("/", 1)[-1]}
+                result = self.bridge.action_control(payload)
             elif parsed.path == "/api/subscribe":
                 result = self.bridge.subscribe_control(payload)
             elif parsed.path == "/api/handshake":

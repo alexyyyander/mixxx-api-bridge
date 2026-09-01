@@ -60,10 +60,58 @@ whenever Mixxx changes that ControlObject.
 {"path":"mixer/crossfader"}
 ```
 
+### `POST /api/action`
+
+Invoke a Mixxx action that is not a simple continuous value. The `action`
+field is one of `trigger`, `toggle`, or `reset`; the control may be supplied as
+`path` or as raw `group` + `key`:
+
+```json
+{"action":"toggle","path":"decks/1/play","wait_ms":500}
+```
+
+`trigger` calls Mixxx's `script.triggerControl`, `toggle` calls
+`script.toggleControl`, and `reset` calls `engine.reset`. The response uses the
+same ACK/feedback shape as `/api/control`. Convenience aliases are also
+available at `/api/trigger`, `/api/toggle`, and `/api/reset`.
+
+### `GET /api/setting`
+
+Read a setting declared by the active controller mapping:
+
+```text
+/api/setting?name=soft_takeover&wait_ms=500
+```
+
+This is intentionally read-only. Mixxx exposes `engine.getSetting` to a
+mapping, but does not expose a generic `engine.setSetting` API for changing
+global preferences through a controller mapping.
+
 ### `POST /api/handshake`
 
 Send a new HELLO frame. The mapping answers with READY if it is enabled on the
 connected MIDI port.
+
+## Coverage boundary
+
+The raw `group` + `key` form can address any Mixxx ControlObject that is
+available to the active Mixxx version. Continuous controls should use
+`scale: "normalized"`; controls with discrete or non-0..1 ranges should use
+`scale: "raw"`. Read-only controls can be queried or subscribed to but cannot
+be written. Momentary controls such as beatjump, hotcue activation and effect
+selection should use `/api/action` rather than `/api/control`.
+
+The bridge does not currently enumerate every ControlObject or infer dynamic
+effect parameter names. Use the Mixxx Controls index to discover a `group` and
+`key`, then probe it with `GET /api/control` before writing. For convenience,
+generic path forms are also accepted for `decks/{deck}/{key}` (or
+`channels/{channel}/{key}`), `preview_decks/{deck}/{key}`,
+`samplers/{sampler}/{key}`, `equalizers/{deck}/{key}`,
+`quick_effects/{deck}/{key}`, `mixer/{key}`, `master/{key}`, `main/{key}`,
+`app/{key}`, `recording/{key}`, `library/{key}`, `playlist/{key}`,
+`autodj/{key}`, `microphones/{n}/{key}`, `auxiliaries/{n}/{key}`, and both
+effect-unit/slot forms. The path is only an address translation; Mixxx still
+decides whether the key exists and is writable.
 
 ## Semantic aliases
 

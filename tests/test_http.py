@@ -37,6 +37,17 @@ def test_health_and_control_endpoints():
         response = connection.getresponse()
         assert response.status == 202
         assert json.loads(response.read())["group"] == "[Channel1]"
+
+        body = json.dumps({"action": "toggle", "path": "decks/1/play"})
+        connection.request(
+            "POST",
+            "/api/action",
+            body=body,
+            headers={"Content-Type": "application/json"},
+        )
+        response = connection.getresponse()
+        assert response.status == 202
+        assert json.loads(response.read())["action"] == "toggle"
         connection.close()
     finally:
         server.shutdown()

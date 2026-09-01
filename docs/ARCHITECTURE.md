@@ -48,8 +48,11 @@ Operations are:
 | `0x03` | both | capabilities |
 | `0x04` | bridge → Mixxx | subscribe |
 | `0x05` | bridge → Mixxx | get control |
+| `0x06` | bridge → Mixxx | action (`trigger`, `toggle`, `reset`) |
+| `0x07` | bridge → Mixxx | get mapping setting |
 | `0x10` | Mixxx → bridge | READY |
 | `0x11` | Mixxx → bridge | ACK |
+| `0x12` | Mixxx → bridge | mapping setting value |
 | `0x7F` | Mixxx → bridge | ERROR |
 
 The Python and JavaScript implementations share deterministic sorted JSON key

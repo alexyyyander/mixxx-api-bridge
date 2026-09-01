@@ -11,6 +11,7 @@ from .discovery import MixxxDiscovery, MixxxProcessInfo
 from .midi import MidiMessage, MidiTransport
 from .protocol import (
     OP_ACK,
+    OP_ACTION,
     OP_CAPABILITIES,
     OP_COMMAND,
     OP_FEEDBACK,
@@ -18,6 +19,8 @@ from .protocol import (
     OP_HELLO,
     OP_ERROR,
     OP_READY,
+    OP_SETTING_GET,
+    OP_SETTING_VALUE,
     OP_SUBSCRIBE,
     ControlAddress,
     ControlCommand,
@@ -36,6 +39,8 @@ class BridgeState:
     mapping: dict[str, Any] = field(default_factory=dict)
     remote_capabilities: dict[str, Any] = field(default_factory=dict)
     controls: dict[str, dict[str, Any]] = field(default_factory=dict)
+    settings: dict[str, Any] = field(default_factory=dict)
+    setting_responses: dict[str, dict[str, Any]] = field(default_factory=dict)
     acknowledgements: dict[str, dict[str, Any]] = field(default_factory=dict)
     errors: list[dict[str, Any]] = field(default_factory=list)
 
@@ -173,6 +178,72 @@ class MixxxApiBridge:
             result.update(response)
         return result
 
+    def action_control(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Run a Mixxx momentary, toggle, or reset action on a control."""
+
+        self._validate_wait_ms(payload.get("wait_ms"))
+        action = payload.get("action")
+        if action not in {"trigger", "toggle", "reset"}:
+            raise ProtocolError("action must be 'trigger', 'toggle', or 'reset'")
+        address, scale = self.registry.resolve(payload)
+        self._validate_scale(scale)
+        request_id = str(payload.get("request_id") or new_request_id())
+        self.transport.send_sysex(
+            encode_frame(
+                OP_ACTION,
+                {
+                    "request_id": request_id,
+                    "action": action,
+                    "group": address.group,
+                    "key": address.key,
+                    "scale": scale,
+                },
+            )
+        )
+        result = {
+            "accepted": True,
+            "request_id": request_id,
+            "action": action,
+            "group": address.group,
+            "key": address.key,
+            "scale": scale,
+            "connected": self.state.connected,
+        }
+        response = self._wait_for_response(request_id, payload.get("wait_ms"))
+        if response:
+            result.update(response)
+        return result
+
+    def get_setting(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Read a setting declared by the active controller mapping.
+
+        Mixxx exposes ``engine.getSetting`` to mappings, but not a supported
+        generic ``setSetting`` API. This endpoint is therefore intentionally
+        read-only and does not pretend to change global Mixxx preferences.
+        """
+
+        self._validate_wait_ms(payload.get("wait_ms"))
+        name = payload.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise ProtocolError("setting name must be a non-empty string")
+        request_id = str(payload.get("request_id") or new_request_id())
+        self.transport.send_sysex(
+            encode_frame(
+                OP_SETTING_GET,
+                {"request_id": request_id, "name": name},
+            )
+        )
+        result = {
+            "accepted": True,
+            "request_id": request_id,
+            "name": name,
+            "cached": self.state.settings.get(name),
+        }
+        response = self._wait_for_response(request_id, payload.get("wait_ms"))
+        if response:
+            result.update(response)
+        return result
+
     def status(self) -> dict[str, Any]:
         process = self.discovery.detect()
         if not process.running:
@@ -192,6 +263,7 @@ class MixxxApiBridge:
             "mixxx": process.as_dict(),
             "mapping": self.state.mapping,
             "remote_capabilities": self.state.remote_capabilities,
+            "settings": dict(self.state.settings),
             "errors": list(self.state.errors[-10:]),
         }
 
@@ -203,12 +275,15 @@ class MixxxApiBridge:
             "operations": {
                 "hello": OP_HELLO,
                 "command": OP_COMMAND,
+                "action": OP_ACTION,
                 "feedback": OP_FEEDBACK,
                 "capabilities": OP_CAPABILITIES,
                 "get": OP_GET,
                 "subscribe": OP_SUBSCRIBE,
+                "setting_get": OP_SETTING_GET,
                 "ready": OP_READY,
                 "ack": OP_ACK,
+                "setting_value": OP_SETTING_VALUE,
             },
         }
         result["remote_capabilities"] = dict(self.state.remote_capabilities)
@@ -253,6 +328,16 @@ class MixxxApiBridge:
         elif operation == OP_CAPABILITIES:
             self.state.remote_capabilities = dict(payload)
             self._emit({"type": "capabilities", **payload})
+        elif operation == OP_SETTING_VALUE:
+            request_id = str(payload.get("request_id") or "")
+            name = payload.get("name")
+            if isinstance(name, str):
+                self.state.settings[name] = payload.get("value")
+            if request_id:
+                self.state.setting_responses[request_id] = dict(payload)
+            with self._response_condition:
+                self._response_condition.notify_all()
+            self._emit({"type": "setting", **payload})
         elif operation == OP_ERROR:
             self._record_error("remote", str(payload.get("error", "unknown error")), payload)
             with self._response_condition:
@@ -295,6 +380,7 @@ class MixxxApiBridge:
         with self._response_condition:
             while True:
                 ack = self.state.acknowledgements.get(request_id)
+                setting = self.state.setting_responses.get(request_id)
                 feedback = next(
                     (
                         item
@@ -305,6 +391,8 @@ class MixxxApiBridge:
                 )
                 if ack is not None or feedback is not None:
                     return {"ack": ack, "feedback": feedback}
+                if setting is not None:
+                    return {"setting": setting}
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     return {"ack": None, "feedback": None, "timed_out": True}
