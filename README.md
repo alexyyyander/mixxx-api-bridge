@@ -14,6 +14,9 @@ virtual MIDI port using SysEx and receives acknowledgements/state feedback.
 - Generic raw `group` + `key` controls and common deck/FX aliases.
 - MIDI SysEx protocol with hello/ready, set, get, subscribe, ack and feedback.
 - Optional Mido/python-rtmidi backend; deterministic in-memory backend for tests.
+- On macOS, native CoreMIDI access is opt-in because some sandboxed hosts make
+  python-rtmidi abort the interpreter; set `MIXXX_API_BRIDGE_ENABLE_NATIVE_MIDI=1`
+  only after confirming the host can access MIDI.
 - No Mixxx C++/source changes and no UI automation.
 
 ## Install the mapping
@@ -44,6 +47,15 @@ mixxx-api-bridge check --midi-output 'IAC Driver Bus 1' \
 mixxx-api-bridge serve --midi-output 'IAC Driver Bus 1' \
   --midi-input 'IAC Driver Bus 1'
 ```
+
+On macOS, enable the native backend explicitly for these commands:
+
+```bash
+MIXXX_API_BRIDGE_ENABLE_NATIVE_MIDI=1 mixxx-api-bridge ports
+```
+
+If the host cannot create a CoreMIDI client, the default is a safe structured
+`backend: "disabled"` response rather than a native crash dialog.
 
 The same values can be supplied through `MIXXX_API_HOST`, `MIXXX_API_PORT`,
 `MIXXX_MIDI_OUTPUT`, `MIXXX_MIDI_INPUT`, and `MIXXX_API_TOKEN`. If a token is

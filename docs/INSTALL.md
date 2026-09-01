@@ -26,6 +26,7 @@ replace the Mixxx application bundle.
 5. Start and verify the sidecar:
 
    ```bash
+   export MIXXX_API_BRIDGE_ENABLE_NATIVE_MIDI=1
    mixxx-api-bridge check \
      --midi-output 'IAC Driver Bus 1' \
      --midi-input 'IAC Driver Bus 1'

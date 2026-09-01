@@ -14,6 +14,21 @@ import sys
 from typing import Any, Callable, Protocol
 
 
+_NATIVE_MIDI_ENV = "MIXXX_API_BRIDGE_ENABLE_NATIVE_MIDI"
+
+
+def _native_midi_enabled() -> bool:
+    """Return whether this process explicitly opted into native MIDI access.
+
+    On macOS, python-rtmidi can terminate the interpreter when CoreMIDI
+    rejects a client (notably from a sandboxed host).  Keep that native path
+    opt-in so a status check cannot create a system crash dialog by surprise.
+    Other platforms retain the historical default behavior.
+    """
+
+    return sys.platform != "darwin" or os.getenv(_NATIVE_MIDI_ENV) == "1"
+
+
 @dataclass(frozen=True)
 class MidiMessage:
     kind: str
@@ -92,6 +107,12 @@ class MidoMidiTransport:
         input_name: str | None = None,
         on_message: Callable[[MidiMessage], None] | None = None,
     ) -> None:
+        if not _native_midi_enabled():
+            raise RuntimeError(
+                "Native CoreMIDI access is disabled on macOS by default because "
+                "python-rtmidi may abort the interpreter; set "
+                f"{_NATIVE_MIDI_ENV}=1 only after confirming the host can access MIDI."
+            )
         try:
             import mido
         except ImportError as exc:  # pragma: no cover - depends on host setup
@@ -117,6 +138,16 @@ class MidoMidiTransport:
 
     @staticmethod
     def available_ports() -> dict[str, Any]:
+        if not _native_midi_enabled():
+            return {
+                "inputs": [],
+                "outputs": [],
+                "backend": "disabled",
+                "error": (
+                    "Native CoreMIDI probing is disabled on macOS by default; "
+                    f"set {_NATIVE_MIDI_ENV}=1 to opt in."
+                ),
+            }
         try:
             import mido
         except ImportError:
