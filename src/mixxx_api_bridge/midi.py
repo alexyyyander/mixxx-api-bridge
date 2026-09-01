@@ -7,6 +7,10 @@ The optional Mido backend talks to real or virtual MIDI ports. Tests can use
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
+import os
+import subprocess
+import sys
 from typing import Any, Callable, Protocol
 
 
@@ -112,18 +116,65 @@ class MidoMidiTransport:
             raise
 
     @staticmethod
-    def available_ports() -> dict[str, list[str]]:
+    def available_ports() -> dict[str, Any]:
         try:
             import mido
         except ImportError:
             return {"inputs": [], "outputs": [], "backend": "unavailable"}
+
+        # CoreMIDI errors from python-rtmidi can call ``abort(3)`` in the
+        # native extension instead of raising a Python exception.  Keep that
+        # failure in a short-lived child process so a status/ports request can
+        # never take down the HTTP bridge (or the caller's Python process).
+        probe = """
+import json
+import mido
+
+inputs = list(mido.get_input_names())
+outputs = list(mido.get_output_names())
+backend = str(
+    getattr(mido.backend, "module_name", None)
+    or getattr(mido.backend, "name", None)
+    or mido.backend
+)
+print(json.dumps({"inputs": inputs, "outputs": outputs, "backend": backend}))
+"""
         try:
-            inputs = list(mido.get_input_names())
-            outputs = list(mido.get_output_names())
-            backend = str(mido.backend.module_name)
-        except Exception as exc:  # pragma: no cover - host backend dependent
+            result = subprocess.run(
+                [sys.executable, "-c", probe],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                env=os.environ.copy(),
+            )
+        except Exception as exc:  # pragma: no cover - host process dependent
             return {"inputs": [], "outputs": [], "backend": "error", "error": str(exc)}
-        return {"inputs": inputs, "outputs": outputs, "backend": backend}
+
+        if result.returncode != 0:
+            detail = result.stderr.strip() or f"exit code {result.returncode}"
+            return {
+                "inputs": [],
+                "outputs": [],
+                "backend": "error",
+                "error": f"MIDI backend probe failed: {detail}",
+            }
+        try:
+            payload = json.loads(result.stdout)
+        except json.JSONDecodeError as exc:  # pragma: no cover - backend dependent
+            return {
+                "inputs": [],
+                "outputs": [],
+                "backend": "error",
+                "error": f"invalid MIDI backend response: {exc}",
+            }
+        if not isinstance(payload, dict):  # pragma: no cover - defensive guard
+            return {
+                "inputs": [],
+                "outputs": [],
+                "backend": "error",
+                "error": "invalid MIDI backend response",
+            }
+        return payload
 
     def send_sysex(self, frame: list[int]) -> None:
         if frame[0] != 0xF0 or frame[-1] != 0xF7:
