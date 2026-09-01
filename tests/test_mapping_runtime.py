@@ -24,6 +24,7 @@ const vm = require('vm');
 const incoming = JSON.parse(process.argv[2]);
 const output = [];
 const values = {};
+const triggerCalls = [];
 const key = (group, name) => group + '/' + name;
 const context = {
   midi: { sendSysexMsg: (frame) => output.push(frame) },
@@ -34,18 +35,22 @@ const context = {
     setValue: (group, name, value) => { values[key(group, name)] = Number(value); },
     trigger: (group, name) => { values[key(group, name)] = 1; },
     reset: (group, name) => { values[key(group, name)] = 0; },
-    getSetting: (name) => name === 'test_setting' ? 'enabled' : undefined,
+    getSetting: (name) => name === 'test_setting' ? 'enabled' :
+      (name === 'triggerDelayMs' ? 350 : undefined),
     makeConnection: () => ({ disconnect: () => {}, trigger: () => {} })
   },
   script: {
-    triggerControl: (group, name) => { values[key(group, name)] = 1; },
+    triggerControl: (group, name, delay) => {
+      triggerCalls.push([group, name, delay]);
+      values[key(group, name)] = 1;
+    },
     toggleControl: (group, name) => { values[key(group, name)] = values[key(group, name)] ? 0 : 1; }
   }
 };
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(process.argv[1], 'utf8'), context);
 context.MixxxApiBridge.incomingData(incoming, incoming.length);
-process.stdout.write(JSON.stringify({ output, values }));
+process.stdout.write(JSON.stringify({ output, values, triggerCalls }));
 """
 
 
@@ -109,6 +114,20 @@ def test_mapping_supports_actions_and_mapping_settings():
     )
     assert [decode_frame(frame)[0] for frame in action_result["output"]] == [OP_ACK, OP_FEEDBACK]
     assert action_result["values"]["[Channel1]/play"] == 1
+
+    trigger_result = run(
+        encode_frame(
+            OP_ACTION,
+            {
+                "request_id": "trigger-1",
+                "action": "trigger",
+                "group": "[Channel1]",
+                "key": "beatjump_forward",
+                "scale": "normalized",
+            },
+        )
+    )
+    assert trigger_result["triggerCalls"] == [["[Channel1]", "beatjump_forward", 350]]
 
     setting_result = run(
         encode_frame(OP_SETTING_GET, {"request_id": "setting-1", "name": "test_setting"})

@@ -154,6 +154,10 @@ the full control index, or replace action-specific APIs. Use `/api/action` for
 momentary buttons and `/api/setting` for read-only mapping settings; global
 Mixxx preferences are not changed by this sidecar.
 
+The bundled mapping declares a read-only `triggerDelayMs` setting for the
+momentary trigger duration. Other mapping settings can be read when a mapping
+that declares them is active.
+
 ## Protocol handshake
 
 The bridge sends a `HELLO` SysEx frame when it starts. The mapping responds

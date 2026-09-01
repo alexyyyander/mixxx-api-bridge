@@ -77,10 +77,11 @@ available at `/api/trigger`, `/api/toggle`, and `/api/reset`.
 
 ### `GET /api/setting`
 
-Read a setting declared by the active controller mapping:
+Read a setting declared by the active controller mapping. The bridge mapping
+declares `triggerDelayMs`, which controls the duration of `trigger` actions:
 
 ```text
-/api/setting?name=soft_takeover&wait_ms=500
+/api/setting?name=triggerDelayMs&wait_ms=500
 ```
 
 This is intentionally read-only. Mixxx exposes `engine.getSetting` to a

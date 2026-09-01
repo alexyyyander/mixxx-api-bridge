@@ -203,8 +203,10 @@ MixxxApiBridge._handleAction = function (payload) {
         if (payload.action === "trigger") {
             // triggerControl is the correct API for momentary controls such
             // as beatjump, eject, hotcue_activate, and pitch_up_small.
+            var triggerDelay = typeof engine.getSetting === "function" ?
+                engine.getSetting("triggerDelayMs") : undefined;
             if (typeof script !== "undefined" && script.triggerControl) {
-                script.triggerControl(payload.group, payload.key);
+                script.triggerControl(payload.group, payload.key, triggerDelay);
             } else {
                 engine.trigger(payload.group, payload.key);
             }

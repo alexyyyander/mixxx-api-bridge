@@ -226,6 +226,7 @@ class ControlRegistry:
             },
             "settings": {
                 "read": "Read mapping settings via engine.getSetting",
+                "declared": ["triggerDelayMs"],
                 "write": False,
             },
         }
