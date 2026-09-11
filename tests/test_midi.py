@@ -65,6 +65,7 @@ def test_macos_native_transport_is_opt_in(monkeypatch):
         MidoMidiTransport("any output")
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX executable helper; CoreMIDI is macOS-only")
 def test_coremidi_process_transport_round_trip(tmp_path):
     helper = tmp_path / "helper.py"
     helper.write_text(
