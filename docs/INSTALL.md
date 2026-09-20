@@ -81,6 +81,22 @@ mixxx-api-bridge serve \
 On Linux, `MIXXX_API_BRIDGE_ENABLE_NATIVE_MIDI=1` is not required. That
 environment variable is only needed for the guarded macOS native MIDI path.
 
+## Windows loopback note
+
+The Mido transport and mapping have been locally verified with Mixxx 2.5.6
+and an existing loopMIDI bus on Windows. This does not extend the macOS/Linux
+CI support matrix to Windows, and the CoreMIDI helper is not a Windows backend.
+
+Enable `Mixxx API Bridge` on the bus in Mixxx. Use the exact input and output
+names printed by `mixxx-api-bridge ports`; their numeric suffixes may differ.
+A single loopback bus echoes each sender's own messages. Both the Python
+sidecar and installed JavaScript mapping must contain the echo-filter fix:
+updating only one side is insufficient. Reinstall the mapping into the profile
+you actually launch, restart Mixxx, then run `check` to verify READY/capabilities.
+
+Real request errors remain visible; only messages travelling in the opposite
+protocol direction are ignored. ACKs, feedback, and subscriptions remain active.
+
 ## 2. Install from a checkout
 
 ```bash

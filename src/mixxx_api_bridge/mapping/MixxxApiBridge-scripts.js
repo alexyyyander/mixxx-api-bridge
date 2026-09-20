@@ -283,6 +283,17 @@ MixxxApiBridge.incomingData = function (data, _length) {
     try {
         var operation = data[6];
         var payload = MixxxApiBridge._payload(data);
+        // A loopback MIDI bus also delivers our own replies to this input.
+        // Never answer a reply, especially ERROR or CAPABILITIES responses.
+        if (operation === MixxxApiBridge.OP_READY ||
+                operation === MixxxApiBridge.OP_ACK ||
+                operation === MixxxApiBridge.OP_FEEDBACK ||
+                operation === MixxxApiBridge.OP_SETTING_VALUE ||
+                operation === MixxxApiBridge.OP_ERROR ||
+                (operation === MixxxApiBridge.OP_CAPABILITIES &&
+                    Object.prototype.hasOwnProperty.call(payload, "mapping"))) {
+            return;
+        }
         if (operation === MixxxApiBridge.OP_HELLO) {
             MixxxApiBridge._handleHello(payload);
         } else if (operation === MixxxApiBridge.OP_COMMAND) {

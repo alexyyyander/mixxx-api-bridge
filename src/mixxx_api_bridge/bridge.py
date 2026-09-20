@@ -298,6 +298,16 @@ class MixxxApiBridge:
             self._record_error("protocol", str(exc))
             return
 
+        # Shared loopback buses echo this client's requests as well as replies.
+        if operation in (
+            OP_HELLO, OP_COMMAND, OP_GET, OP_SUBSCRIBE, OP_ACTION, OP_SETTING_GET
+        ):
+            return
+        # CAPABILITIES uses one opcode in both directions. Only the response
+        # contains mapping metadata; an echoed query must not replace it.
+        if operation == OP_CAPABILITIES and "mapping" not in payload:
+            return
+
         if operation == OP_READY:
             self.state.connected = True
             self.state.last_ready_at = time.time()

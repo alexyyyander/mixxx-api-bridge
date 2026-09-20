@@ -45,6 +45,11 @@ Set one writable control. Use either a semantic `path` or a raw `group` and
 `wait_ms` is optional (0..5000); when present the response includes an ACK and
 feedback frame or `timed_out: true`.
 
+An ACK confirms that the mapping handled the control write. It does not confirm
+completion of asynchronous audio-engine work, such as seeking a deck. A caller
+must verify the required deck state before issuing a dependent operation such
+as setting a hotcue; merely receiving the seek ACK is not a completion barrier.
+
 ### `GET /api/control`
 
 Read a control asynchronously. Query parameters are `path`, or `group`, `key`,
